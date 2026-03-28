@@ -1,0 +1,30 @@
+# Dependencies
+tribunal-backend/node_modules/
+tribunal-frontend/node_modules/
+
+# Build outputs
+tribunal-frontend/dist/
+tribunal-frontend/.vite/
+
+# Environment files (contain secrets)
+tribunal-backend/.env
+tribunal-backend/.env.production
+tribunal-frontend/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
