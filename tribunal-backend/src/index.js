@@ -11,14 +11,7 @@ const tasaRoutes = require('./routes/tasaRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://tu-frontend.vercel.app', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176']
-    : '*',
-  credentials: true
-};
-
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(express.json());
 
 app.get('/health', (req, res) => {
