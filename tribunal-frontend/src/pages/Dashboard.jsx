@@ -8,25 +8,21 @@ function StatCard({ label, value, variant = 'default' }) {
       bg: 'bg-white',
       border: 'border-slate-200',
       icon: 'bg-blue-100 text-blue-600',
-      value: 'text-slate-900',
     },
     danger: {
       bg: 'bg-white',
       border: 'border-red-200',
       icon: 'bg-red-100 text-red-600',
-      value: 'text-red-600',
     },
     warning: {
       bg: 'bg-white',
       border: 'border-amber-200',
       icon: 'bg-amber-100 text-amber-600',
-      value: 'text-amber-600',
     },
     success: {
       bg: 'bg-white',
       border: 'border-emerald-200',
       icon: 'bg-emerald-100 text-emerald-600',
-      value: 'text-emerald-600',
     },
   };
 
@@ -39,18 +35,88 @@ function StatCard({ label, value, variant = 'default' }) {
   };
 
   return (
-    <div className={`card ${c.bg} ${c.border} border-l-4 border-t-0 border-r-0 border-b-0 rounded-r-lg`}>
-      <div className="card-body flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-500 mb-1">{label}</p>
-          <p className={`text-3xl font-bold ${c.value}`}>{value}</p>
+    <div className={`card ${c.bg} ${c.border} border-l-4 border-t-0 border-r-0 border-b-0 rounded-r-lg p-4`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs sm:text-sm font-medium text-slate-500 truncate">{label}</p>
+          <p className={`text-2xl sm:text-3xl font-bold ${variant === 'danger' ? 'text-red-600' : variant === 'warning' ? 'text-amber-600' : 'text-slate-900'}`}>{value}</p>
         </div>
-        <div className={`p-3 rounded-lg ${c.icon}`}>
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className={`p-2.5 sm:p-3 rounded-lg flex-shrink-0 ${c.icon}`}>
+          <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={icons[variant] || icons.default} />
           </svg>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PlazosVencidosList({ plazos }) {
+  const vencidos = plazos.filter(p => p.estado === 'pendiente' && isBefore(parseISO(p.fechaLimite), new Date()));
+
+  if (vencidos.length === 0) {
+    return (
+      <div className="p-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+          <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <p className="text-emerald-600 font-medium text-sm sm:text-base">Sin plazos vencidos</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-slate-100">
+      {vencidos.slice(0, 5).map(p => (
+        <div key={p._id} className="p-3 sm:p-4 hover:bg-slate-50">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-slate-900 text-sm sm:text-base truncate">{p.descripcion}</p>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                {p.expedienteId?.numero || 'N/A'}
+              </p>
+            </div>
+            <span className="badge badge-danger flex-shrink-0 text-xs">
+              +{differenceInDays(new Date(), parseISO(p.fechaLimite))} días
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExpedientesList({ expedientes }) {
+  const activos = expedientes.filter(e => e.estado === 'activo');
+
+  if (activos.length === 0) {
+    return (
+      <div className="p-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+          <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+        </div>
+        <p className="text-slate-600 font-medium text-sm sm:text-base">Sin expedientes activos</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-slate-100">
+      {activos.slice(0, 5).map(e => (
+        <div key={e._id} className="p-3 sm:p-4 hover:bg-slate-50">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-xs sm:text-sm text-blue-600 font-medium">{e.numero}</p>
+              <p className="text-slate-900 text-sm sm:text-base truncate mt-0.5">{e.caratula}</p>
+            </div>
+            <span className="badge badge-info flex-shrink-0 text-xs">{e.jurisdiccion}</span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -71,9 +137,6 @@ export default function Dashboard() {
     return dias >= 0 && dias <= 7;
   }).length;
 
-  const vencidosList = plazos.filter(p => p.estado === 'pendiente' && isBefore(parseISO(p.fechaLimite), new Date()));
-  const activosList = expedientes.filter(e => e.estado === 'activo').slice(0, 6);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -86,118 +149,48 @@ export default function Dashboard() {
   }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Panel de Control</h1>
-        <p className="text-slate-500 mt-1">Resumen de actividad del sistema</p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Panel de Control</h1>
+        <p className="text-slate-500 text-sm mt-1">Resumen de actividad del sistema</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-5 mb-6">
-        <StatCard label="Expedientes Activos" value={activos} variant="default" />
-        <StatCard label="Plazos Pendientes" value={pendientes} variant="default" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard label="Expedientes Activos" value={activos} />
+        <StatCard label="Plazos Pendientes" value={pendientes} />
         <StatCard label="Plazos Vencidos" value={vencidos} variant={vencidos > 0 ? 'danger' : 'success'} />
         <StatCard label="Por Vencer" value={porVencer} variant={porVencer > 0 ? 'warning' : 'default'} />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="card">
-          <div className="card-header flex items-center justify-between">
+          <div className="card-header flex items-center justify-between py-3 px-4">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>Plazos Vencidos</span>
+              <span className="text-sm sm:text-base font-semibold">Plazos Vencidos</span>
             </div>
-            <Link to="/plazos" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <Link to="/plazos" className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
               Ver todos →
             </Link>
           </div>
-          <div className="card-body p-0">
-            {vencidosList.length === 0 ? (
-              <div className="p-6 text-center">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <p className="text-emerald-600 font-medium">Sin plazos vencidos</p>
-                <p className="text-sm text-slate-500 mt-1">Excelente gestión de tiempos</p>
-              </div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th className="px-4 py-3">Descripción</th>
-                    <th className="px-4 py-3">Expediente</th>
-                    <th className="px-4 py-3">Días</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vencidosList.slice(0, 5).map(p => (
-                    <tr key={p._id} className="hover:bg-red-50">
-                      <td className="px-4 py-3 text-sm font-medium text-slate-900">{p.descripcion}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600">
-                        {p.expedienteId?.numero || 'N/A'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="badge badge-danger">
-                          +{differenceInDays(new Date(), parseISO(p.fechaLimite))} días
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <PlazosVencidosList plazos={plazos} />
         </div>
 
         <div className="card">
-          <div className="card-header flex items-center justify-between">
+          <div className="card-header flex items-center justify-between py-3 px-4">
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span>Expedientes Activos</span>
+              <span className="text-sm sm:text-base font-semibold">Expedientes Activos</span>
             </div>
-            <Link to="/expedientes" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <Link to="/expedientes" className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium">
               Ver todos →
             </Link>
           </div>
-          <div className="card-body p-0">
-            {activosList.length === 0 ? (
-              <div className="p-6 text-center">
-                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                </div>
-                <p className="text-slate-600 font-medium">Sin expedientes activos</p>
-                <p className="text-sm text-slate-500 mt-1">Crea tu primer expediente</p>
-              </div>
-            ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th className="px-4 py-3">Número</th>
-                    <th className="px-4 py-3">Carátula</th>
-                    <th className="px-4 py-3">Jurisdicción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activosList.map(e => (
-                    <tr key={e._id}>
-                      <td className="px-4 py-3 text-sm font-mono text-blue-600">{e.numero}</td>
-                      <td className="px-4 py-3 text-sm text-slate-900 truncate max-w-xs">{e.caratula}</td>
-                      <td className="px-4 py-3">
-                        <span className="badge badge-info">{e.jurisdiccion}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <ExpedientesList expedientes={expedientes} />
         </div>
       </div>
     </div>
