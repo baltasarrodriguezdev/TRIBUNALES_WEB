@@ -10,7 +10,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://tribunal-backend.onrender.com/api/$1"
+      "dest": "https://tribunales-web-1.onrender.com/api/$1"
     },
     {
       "src": "/(.*)",
