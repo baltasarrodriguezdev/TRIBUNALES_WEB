@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "seed": "node src/seedPlantillas.js"
   },
   "keywords": ["tribunal", "abogacia", "expedientes"],
   "author": "",
@@ -14,7 +15,11 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "mongoose": "^9.3.3"
+    "mongoose": "^9.3.3",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.8.0",
+    "groq-sdk": "^0.15.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
