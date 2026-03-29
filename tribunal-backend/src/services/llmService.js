@@ -1,14 +1,21 @@
 const Groq = require('groq-sdk');
 
-const SYSTEM_PROMPT = `Eres un asistente legal especializado en derecho procesal argentino. Analiza el siguiente documento y extrae los datos en formato JSON.
+const SYSTEM_PROMPT = `Eres un asistente legal especializado en derecho procesal argentino. Analiza el siguiente documento judicial y extrae los datos en formato JSON.
+
+REGLAS CRÍTICAS:
+1. SOLO extrae datos que estén CLARAMENTE presentes en el texto
+2. Si un dato NO está explícito, devuelve null (NO inventes ni inferigas)
+3. Sé conservador: es mejor dejar vacío que inventar información
+4. No asumas roles procesales (actor/demandado) sin evidencia textual clara
 
 Devuelve SOLO JSON válido con esta estructura exacta, sin texto adicional:
 {
   "tipoEscritura": "decreto|resolucion|petitorio|oficio|nota|demanda|contestacion|recurso|otro",
-  "fuero": "penal|civil|laboral|familia|comercial|administrativo",
+  "fuero": "penal|civil|laboral|familia|comercial|administrativo" o null,
   "expediente": "Número de expediente completo o null",
   "caratula": "Nombre del caso completo o null",
   "juzgado": "Número de juzgado o null",
+  "ciudad": "Ciudad del tribunal o null",
   "partes": {
     "actor": "Nombre del actor/demandante o null",
     "demandado": "Nombre del demandado o null",
@@ -39,41 +46,42 @@ class LLMService {
     }
   }
 
-  async analyzeDocument(text) {
+  async analyzeDocument(text, customPrompt = null) {
     const cleanedText = this.cleanTextForAnalysis(text);
+    const prompt = customPrompt || SYSTEM_PROMPT;
     
     if (this.isConfigured) {
-      return this.analyzeWithGroq(cleanedText);
+      return this.analyzeWithGroq(cleanedText, prompt);
     } else if (this.useOllama) {
-      return this.analyzeWithOllama(cleanedText);
+      return this.analyzeWithOllama(cleanedText, prompt);
     } else {
-      return this.analyzeWithOllamaFallback(cleanedText);
+      return this.analyzeWithOllamaFallback(cleanedText, prompt);
     }
   }
 
   cleanTextForAnalysis(text) {
     return text
-      .substring(0, 12000)
+      .substring(0, 15000)
       .replace(/\n{3,}/g, '\n\n')
       .trim();
   }
 
-  async analyzeWithGroq(text) {
+  async analyzeWithGroq(text, prompt = SYSTEM_PROMPT) {
     try {
       const completion = await this.groq.chat.completions.create({
         messages: [
           {
             role: 'system',
-            content: SYSTEM_PROMPT
+            content: prompt
           },
           {
             role: 'user',
-            content: `Analiza este documento legal argentino y extrae los datos:\n\n${text}`
+            content: `Analiza este documento legal argentino y extrae los datos en formato JSON:\n\n${text}`
           }
         ],
         model: 'llama-3.3-70b-versatile',
         temperature: 0.1,
-        max_tokens: 2048
+        max_tokens: 3072
       });
 
       const response = completion.choices[0]?.message?.content;
@@ -84,18 +92,18 @@ class LLMService {
     }
   }
 
-  async analyzeWithOllama(text) {
+  async analyzeWithOllama(text, prompt = SYSTEM_PROMPT) {
     try {
       const response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'mistral',
-          prompt: `${SYSTEM_PROMPT}\n\nAnaliza este documento legal:\n\n${text}`,
+          prompt: `${prompt}\n\nAnaliza este documento legal y devuelve los datos en JSON:\n\n${text}`,
           stream: false,
           options: {
             temperature: 0.1,
-            num_predict: 2048
+            num_predict: 3072
           }
         })
       });
@@ -108,13 +116,13 @@ class LLMService {
       return this.parseLLMResponse(data.response);
     } catch (error) {
       console.error('Error con Ollama:', error);
-      return this.analyzeWithOllamaFallback(text);
+      return this.analyzeWithOllamaFallback(text, prompt);
     }
   }
 
-  async analyzeWithOllamaFallback(text) {
+  async analyzeWithOllamaFallback(text, prompt = SYSTEM_PROMPT) {
     this.useOllama = true;
-    return this.analyzeWithOllama(text);
+    return this.analyzeWithOllama(text, prompt);
   }
 
   parseLLMResponse(response) {
@@ -164,20 +172,33 @@ class LLMService {
     }
   }
 
-  async generateFromTemplate(template, data) {
-    const prompt = `Eres un asistente legal argentino. Completa el siguiente modelo de escrito judicial con los datos proporcionados.
+  async generateFromTemplate(template, data, comoBorrador = false) {
+    const dataKeys = Object.keys(data).filter(k => data[k] && data[k] !== null && data[k] !== '');
+    const datosDisponibles = dataKeys.length;
+    const totalVars = (template.contenido.match(/\{\{\w+\}\}/g) || []).length;
+    const tieneDatosSuficientes = datosDisponibles >= totalVars * 0.5;
 
-DATOS EXTRAÍDOS:
+    const instruccionesAdicionales = comoBorrador || !tieneDatosSuficientes
+      ? `\n\n⚠️ IMPORTANTE: Este escrito se generará como BORRADOR porque faltan datos. 
+- Deja las variables faltantes como {{variable}} sin modificar
+- NO pongas "[DATOS PENDIENTES]" ni ningún indicador
+- El documento se genera con los campos vacíos`
+      : `\n\nINSTRUCCIÓN: Si falta un dato crítico, el escrito debe indicarlo como {{variable}} (variable sin completar).`;
+
+    const prompt = `Eres un asistente legal argentino experto en redacción de escritos judiciales. Completa el siguiente modelo de escrito judicial SOLO con los datos proporcionados.
+
+DATOS PROPORCIONADOS (solo estos, no inventes):
 ${JSON.stringify(data, null, 2)}
 
 MODELO DE ESCRITO:
 ${template.contenido}
 
-INSTRUCCIONES:
-1. Reemplaza las variables entre {{ }} con los datos proporcionados
-2. Mantén el formato legal y la estructura del modelo
-3. Si falta algún dato, indica [DATOS PENDIENTES]
-4. No inventes información que no esté en los datos
+INSTRUCCIONES IMPORTANTES:
+1. Reemplaza las variables {{variable}} SOLO si Tienes el dato en "DATOS PROPORCIONADOS" Y el dato no está vacío
+2. Si NO tienes un dato en "DATOS PROPORCIONADOS", DEJA {{variable}} SIN MODIFICAR
+3. NUNCA inventes información que no esté en los datos proporcionados
+4. Mantén el formato legal profesional argentino
+5. NO uses marcadores como [PENDIENTE], [DATOS PENDIENTES], [FALTA], etc.${instruccionesAdicionales}
 
 ESCRITO COMPLETADO:`;
 

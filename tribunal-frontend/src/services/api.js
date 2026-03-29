@@ -57,13 +57,20 @@ export const api = {
   },
   
   plantillas: {
-    getAll: () => fetch(`${API_URL}/plantillas`).then(r => r.json()).then(data => {
-      if (Array.isArray(data)) {
-        return { success: true, data };
-      }
-      return data;
-    }),
+    getAll: (filtros = {}) => {
+      const params = new URLSearchParams(filtros).toString();
+      return fetch(`${API_URL}/plantillas${params ? `?${params}` : ''}`)
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            return { success: true, data };
+          }
+          return data;
+        });
+    },
     getById: (id) => fetch(`${API_URL}/plantillas/${id}`).then(r => r.json()),
+    getRecientes: () => fetch(`${API_URL}/plantillas/recientes`).then(r => r.json()),
+    getPopulares: () => fetch(`${API_URL}/plantillas/populares`).then(r => r.json()),
     create: (data) => fetch(`${API_URL}/plantillas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -75,6 +82,9 @@ export const api = {
       body: JSON.stringify(data)
     }).then(r => r.json()),
     delete: (id) => fetch(`${API_URL}/plantillas/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    usar: (id) => fetch(`${API_URL}/plantillas/${id}/usar`, { method: 'POST' }).then(r => r.json()),
+    duplicar: (id) => fetch(`${API_URL}/plantillas/${id}/duplicar`, { method: 'POST' }).then(r => r.json()),
+    destacar: (id) => fetch(`${API_URL}/plantillas/${id}/destacar`, { method: 'PATCH' }).then(r => r.json()),
   },
   
   tasas: {
@@ -93,11 +103,11 @@ export const api = {
     generar: (file, plantillaId, useAI = true) => 
       uploadFile('generar/generar', file, { plantillaId, useAI }),
     
-    generarDirecto: (datosExtraidos, plantillaId, useAI = true) => 
+    generarDirecto: (datosExtraidos, plantillaId, useAI = true, forzarBorrador = false) => 
       fetch(`${API_URL}/generar/generar-directo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ datosExtraidos, plantillaId, useAI })
+        body: JSON.stringify({ datosExtraidos, plantillaId, useAI, forzarBorrador })
       }).then(r => r.json()),
     
     getHistorial: (params = {}) => {

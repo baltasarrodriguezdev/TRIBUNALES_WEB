@@ -1,4 +1,5 @@
 const Plantilla = require('../models/Plantilla');
+const { NIVEL_VARIABLE } = require('../models/Plantilla');
 
 const CATEGORIAS_TIPO = {
   'decreto': 'decreto',
@@ -13,72 +14,131 @@ const CATEGORIAS_TIPO = {
   'otro': 'otro'
 };
 
+const VARIABLES_POR_CATEGORIA = {
+  recurso: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula', 'parte_recurrente', 'abogado_recurrente', 'matricula_recurrente', 'resolucion_apelada', 'fecha_resolucion'],
+    recomendados: ['parte_demandado', 'abogado_demandado', 'agravios', 'fundamentos', 'norma_invocada', 'petitorio'],
+    opcionales: ['domicilio_electronico', 'telefono', 'email']
+  },
+  demanda: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula', 'actor', 'demandado', 'domicilio_actor', 'objeto_procesal', 'monto'],
+    recomendados: ['dni_actor', 'dni_demandado', 'abogado_actor', 'matricula_actor', 'fecha_contrato', 'hechos', 'fundamentos'],
+    opcionales: ['telefono', 'email', 'domicilio_electronico']
+  },
+  contestacion: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula', 'demandado', 'actor', 'contesta_factum', 'contesta_derecho'],
+    recomendados: ['abogado_demandado', 'matricula_demandado', 'defensas', 'excepciones'],
+    opcionales: ['telefono', 'email']
+  },
+  petitorio: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula', 'parte_peticionaria', 'medida_solicitada'],
+    recomendados: ['fundamentos', 'norma_invocada', 'periculum', 'fumus', 'prueba_ofrecida'],
+    opcionales: ['domicilio_electronico']
+  },
+  escrito: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula'],
+    recomendados: ['parte', 'abogado', 'matricula'],
+    opcionales: []
+  },
+  resolucion: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula', 'resultado', 'fecha'],
+    recomendados: ['fundamentos', 'antecedentes'],
+    opcionales: []
+  },
+  otro: {
+    criticos: ['juzgado', 'ciudad', 'expediente', 'caratula'],
+    recomendados: ['parte'],
+    opcionales: []
+  }
+};
+
 function extractVariables(plantilla) {
   const regex = /\{\{(\w+)\}\}/g;
-  const variables = [];
+  const variables = new Set();
   let match;
   
-  while ((match = regex.exec(plantilla.contenido)) !== null) {
-    if (!variables.includes(match[1])) {
-      variables.push(match[1]);
-    }
+  while ((match = regex.exec(plantilla.contenido || '')) !== null) {
+    variables.add(match[1].trim());
   }
   
-  return variables;
+  return Array.from(variables);
 }
 
-function fillTemplate(template, data) {
-  let filled = template.contenido;
+function getNivelVariable(nombre, categoria) {
+  const config = VARIABLES_POR_CATEGORIA[categoria] || VARIABLES_POR_CATEGORIA.otro;
   
-  const replacements = {
-    expediente: data.expediente,
-    caratula: data.caratula,
-    juzgado: data.juzgado,
-    actor: data.partes?.actor,
-    demandado: data.partes?.demandado,
-    abogado_actor: data.partes?.abogadoActor,
-    abogado_demandado: data.partes?.abogadoDemandado,
-    domicilio_actor: data.domicilios?.actor,
-    domicilio_demandado: data.domicilios?.demandado,
-    fecha_presentacion: data.fechas?.presentacion,
-    fecha_sentencia: data.fechas?.sentencia,
-    objeto_procesal: data.objetoProcesal,
-    tipo_escritura: data.tipoEscritura,
-    fuero: data.fuero
-  };
+  if (config.criticos.includes(nombre)) return NIVEL_VARIABLE.CRITICO;
+  if (config.recomendados.includes(nombre)) return NIVEL_VARIABLE.RECOMENDADO;
+  return NIVEL_VARIABLE.OPCIONAL;
+}
 
-  for (const [key, value] of Object.entries(replacements)) {
-    if (value) {
-      filled = filled.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+function fillTemplate(template, data, opciones = {}) {
+  const { comoBorrador = false } = opciones;
+  let filled = template.contenido || '';
+  
+  const variablesEnPlantilla = extractVariables(template);
+  
+  for (const [key, value] of Object.entries(data || {})) {
+    if (value && value.toString().trim() !== '') {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'gi');
+      filled = filled.replace(regex, value);
     }
   }
 
-  filled = filled.replace(/\{\{[^}]+\}\}/g, '[PENDIENTE]');
+  if (comoBorrador) {
+    filled = filled.replace(/\{\{([^}]+)\}\}/g, '[____$1____]');
+  } else {
+    filled = filled.replace(/\{\{([^}]+)\}\}/g, '[[PENDIENTE: $1]]');
+  }
   
   return filled;
 }
 
-function calculateCompletitud(template, data) {
-  const variables = extractVariables(template);
-  let filled = 0;
-  let pending = [];
-
-  for (const variable of variables) {
-    const dataValue = getNestedValue(data, variable);
-    if (dataValue) {
-      filled++;
+function calculateCompletitud(template, data, categoria = 'otro') {
+  const variablesEnPlantilla = extractVariables(template);
+  
+  const criticos = { filled: [], pending: [] };
+  const recomendados = { filled: [], pending: [] };
+  const opcionales = { filled: [], pending: [] };
+  
+  for (const variable of variablesEnPlantilla) {
+    const nivel = getNivelVariable(variable, categoria);
+    const tieneValor = data && data[variable] && data[variable].toString().trim() !== '';
+    
+    const destino = nivel === NIVEL_VARIABLE.CRITICO ? criticos : 
+                    nivel === NIVEL_VARIABLE.RECOMENDADO ? recomendados : 
+                    opcionales;
+    
+    if (tieneValor) {
+      destino.filled.push(variable);
     } else {
-      pending.push(variable);
+      destino.pending.push(variable);
     }
   }
 
+  const totalCriticos = criticos.filled.length + criticos.pending.length;
+  const totalRecomendados = recomendados.filled.length + recomendados.pending.length;
+  const total = totalCriticos + totalRecomendados + opcionales.filled.length + opcionales.pending.length;
+  
+  const filled = criticos.filled.length + recomendados.filled.length + opcionales.filled.length;
+  
+  let estado = 'completo';
+  if (criticos.pending.length > 0) {
+    estado = 'incompleto';
+  } else if (recomendados.pending.length > 0) {
+    estado = 'borrador';
+  }
+
   return {
-    total: variables.length,
+    total,
     filled,
-    pending,
-    percentage: variables.length > 0 
-      ? Math.round((filled / variables.length) * 100) 
-      : 100
+    percentage: total > 0 ? Math.round((filled / total) * 100) : 100,
+    criticos,
+    recomendados,
+    opcionales,
+    estado,
+    puedeGenerar: criticos.pending.length === 0,
+    esBorrador: estado !== 'completo'
   };
 }
 
@@ -152,24 +212,128 @@ async function getTemplatesGroupedByCategory() {
 
 async function getVariablesCatalog() {
   return {
-    expediente: { type: 'text', description: 'Número de expediente judicial' },
-    caratula: { type: 'text', description: 'Nombre completo del caso' },
-    juzgado: { type: 'text', description: 'Número de juzgado' },
-    actor: { type: 'text', description: 'Nombre del actor/demandante' },
-    demandado: { type: 'text', description: 'Nombre del demandado' },
-    abogado_actor: { type: 'text', description: 'Abogado del actor' },
-    abogado_demandado: { type: 'text', description: 'Abogado del demandado' },
-    domicilio_actor: { type: 'text', description: 'Domicilio del actor' },
-    domicilio_demandado: { type: 'text', description: 'Domicilio del demandado' },
-    fecha_presentacion: { type: 'date', description: 'Fecha de presentación' },
-    fecha_sentencia: { type: 'date', description: 'Fecha de sentencia' },
-    objeto_procesal: { type: 'textarea', description: 'Objeto del proceso' },
-    fojas: { type: 'number', description: 'Número de fojas' },
-    ciudad: { type: 'text', description: 'Ciudad del tribunal' },
-    juez: { type: 'text', description: 'Nombre del juez' },
-    tipo_accion: { type: 'text', description: 'Tipo de acción judicial' },
-    monto: { type: 'currency', description: 'Monto en disputa' }
+    expediente: { type: 'text', description: 'Número de expediente judicial', nivel: 'critico', seccion: 'proceso' },
+    caratula: { type: 'text', description: 'Nombre completo del caso', nivel: 'critico', seccion: 'proceso' },
+    juzgado: { type: 'text', description: 'Número de juzgado', nivel: 'critico', seccion: 'proceso' },
+    ciudad: { type: 'text', description: 'Ciudad del tribunal', nivel: 'critico', seccion: 'proceso' },
+    parte_recurrente: { type: 'text', description: 'Parte que interpone el recurso', nivel: 'critico', seccion: 'partes' },
+    parte_demandado: { type: 'text', description: 'Parte contraria', nivel: 'recomendado', seccion: 'partes' },
+    actor: { type: 'text', description: 'Actor/Demandante', nivel: 'critico', seccion: 'partes' },
+    demandado: { type: 'text', description: 'Demandado', nivel: 'critico', seccion: 'partes' },
+    abogado_recurrente: { type: 'text', description: 'Abogado del recurrente', nivel: 'critico', seccion: 'abogados' },
+    abogado_actor: { type: 'text', description: 'Abogado del actor', nivel: 'recomendado', seccion: 'abogados' },
+    abogado_demandado: { type: 'text', description: 'Abogado del demandado', nivel: 'recomendado', seccion: 'abogados' },
+    matricula_recurrente: { type: 'text', description: 'Matrícula del abogado', nivel: 'critico', seccion: 'abogados' },
+    matricula_actor: { type: 'text', description: 'Matrícula del abogado actor', nivel: 'recomendado', seccion: 'abogados' },
+    matricula_demandado: { type: 'text', description: 'Matrícula del abogado demandado', nivel: 'recomendado', seccion: 'abogados' },
+    domicilio_actor: { type: 'text', description: 'Domicilio del actor', nivel: 'critico', seccion: 'domicilios' },
+    domicilio_demandado: { type: 'text', description: 'Domicilio del demandado', nivel: 'recomendado', seccion: 'domicilios' },
+    domicilio_electronico: { type: 'text', description: 'Domicilio electrónico', nivel: 'opcional', seccion: 'domicilios' },
+    resolucion_apelada: { type: 'text', description: 'Resolución que se apelda', nivel: 'critico', seccion: 'resolucion' },
+    fecha_resolucion: { type: 'date', description: 'Fecha de la resolución', nivel: 'critico', seccion: 'fechas' },
+    fecha_presentacion: { type: 'date', description: 'Fecha de presentación', nivel: 'recomendado', seccion: 'fechas' },
+    fecha_sentencia: { type: 'date', description: 'Fecha de sentencia', nivel: 'recomendado', seccion: 'fechas' },
+    agravios: { type: 'textarea', description: 'Agravios del recurso', nivel: 'recomendado', seccion: 'agravios' },
+    fundamentos: { type: 'textarea', description: 'Fundamentos jurídicos', nivel: 'recomendado', seccion: 'agravios' },
+    norma_invocada: { type: 'text', description: 'Norma legal citada', nivel: 'recomendado', seccion: 'normas' },
+    objeto_procesal: { type: 'textarea', description: 'Objeto del proceso', nivel: 'critico', seccion: 'proceso' },
+    monto: { type: 'currency', description: 'Monto en disputa', nivel: 'critico', seccion: 'proceso' },
+    hechos: { type: 'textarea', description: 'Hechos de la causa', nivel: 'recomendado', seccion: 'agravios' },
+    resultado: { type: 'text', description: 'Resultado de la resolución', nivel: 'critico', seccion: 'resolucion' },
+    parte_peticionaria: { type: 'text', description: 'Parte que petitiona', nivel: 'critico', seccion: 'partes' },
+    medida_solicitada: { type: 'text', description: 'Medida cautelar solicitada', nivel: 'critico', seccion: 'otros' },
+    periculum: { type: 'textarea', description: 'Peligro en la demora', nivel: 'recomendado', seccion: 'agravios' },
+    fumus: { type: 'textarea', description: 'Fumus boni iuris', nivel: 'recomendado', seccion: 'agravios' },
+    prueba_ofrecida: { type: 'textarea', description: 'Prueba ofrecida', nivel: 'opcional', seccion: 'otros' },
+    testigos: { type: 'textarea', description: 'Testigos propuestos', nivel: 'opcional', seccion: 'testigos' },
+    fojas: { type: 'number', description: 'Número de fojas', nivel: 'opcional', seccion: 'otros' },
+    juez: { type: 'text', description: 'Nombre del juez', nivel: 'opcional', seccion: 'otros' },
+    tipo_accion: { type: 'text', description: 'Tipo de acción judicial', nivel: 'recomendado', seccion: 'proceso' }
   };
+}
+
+function generarPromptExtraccion(categoria, contexto = {}) {
+  const baseInstruction = `REGLAS CRÍTICAS:
+1. SOLO extrae datos que estén CLARAMENTE presentes en el texto del documento
+2. Si un dato NO está explícito en el texto, devuelve null (NO inferigas ni inventes)
+3. Sé conservador: es mejor dejar vacío que inventar información
+4. No asumas roles procesales sin evidencia textual clara
+5. Devuelve SOLO JSON válido`;
+
+  const promptsPorCategoria = {
+    recurso: `${baseInstruction}
+
+Analiza este documento de RECURSO DE APELACIÓN y extrae datos específicos.
+
+DATOS A BUSCAR (solo si están en el texto):
+- parte_recurrente: Quién interpone el recurso (nombre completo)
+- resolucion_apelada: Número de resolución que se apela
+- fecha_resolucion: Fecha de la resolución apelada
+- agravios: Fundamentos del recurso (texto literal si está)
+- fundamentos: Fundamentos jurídicos
+- norma_invocada: Artículos/leyes citadas
+- parte_demandado: Parte contraria
+- abogado_recurrente y matricula_recurrente
+
+DATOS DEL PROCESO:
+- expediente, caratula, juzgado, ciudad, fuero`,
+
+    demanda: `${baseInstruction}
+
+Analiza esta DEMANDA y extrae datos específicos.
+
+DATOS A BUSCAR (solo si están en el texto):
+- actor: Nombre del demandante
+- demandado: Nombre del demandado
+- domicilio_actor: Domicilio del actor
+- objeto_procesal: Qué se pide
+- monto: Monto demandado
+- hechos: Hechos de la causa
+- fecha_contrato: Fecha del hecho origen
+- dni_actor / CUIT_actor: Documento
+- abogado_actor y matricula_actor
+
+DATOS DEL PROCESO:
+- expediente, caratula, juzgado, ciudad, fuero`,
+
+    petitorio: `${baseInstruction}
+
+Analiza este PETITORIO/MEDIDA CAUTELAR y extrae datos.
+
+DATOS A BUSCAR (solo si están en el texto):
+- parte_peticionaria: Quién pide la medida
+- medida_solicitada: Qué medida se pide
+- objeto_procesal: Objeto del proceso
+- periculum: Peligro en la demora
+- fumus: Fumus boni iuris
+- fundamentos
+- expediente y caratula`,
+
+    contestacion: `${baseInstruction}
+
+Analiza esta CONTESTACIÓN DE DEMANDA y extrae datos.
+
+DATOS A BUSCAR (solo si están en el texto):
+- demandado: Quién contesta
+- actor: Actor original
+- contesta_factum: Cómo niega/reconoce hechos
+- contesta_derecho: Defensas
+- defensas y excepciones
+- expediente y caratula`,
+
+    resolucion: `${baseInstruction}
+
+Analiza esta RESOLUCIÓN y extrae datos.
+
+DATOS A BUSCAR (solo si están en el texto):
+- resultado: Decisión (hacer lugar, rechazar, etc.)
+- antecedentes
+- fundamentos
+- expediente, caratula
+- fecha`
+  };
+
+  return promptsPorCategoria[categoria] || promptsPorCategoria.otro;
 }
 
 module.exports = {
@@ -180,5 +344,9 @@ module.exports = {
   incrementUsage,
   getTemplatesGroupedByCategory,
   getVariablesCatalog,
-  CATEGORIAS_TIPO
+  CATEGORIAS_TIPO,
+  NIVEL_VARIABLE,
+  getNivelVariable,
+  VARIABLES_POR_CATEGORIA,
+  generarPromptExtraccion
 };

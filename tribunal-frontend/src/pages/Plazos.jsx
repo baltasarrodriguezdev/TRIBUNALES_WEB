@@ -168,7 +168,7 @@ export default function Plazos() {
   };
 
   const handleMarcarCumplido = async (plazo) => {
-    await api.plazos.update(plazo._id, { ...plazo, estado: 'cumplido' });
+    await api.plazos.update(plazo._id, { estado: 'cumplido' });
     refreshPlazos();
   };
 

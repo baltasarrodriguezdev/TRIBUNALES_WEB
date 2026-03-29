@@ -104,7 +104,7 @@ router.post('/generar', upload.single('archivo'), async (req, res) => {
 
 router.post('/generar-directo', async (req, res) => {
   try {
-    const { datosExtraidos, plantillaId, useAI } = req.body;
+    const { datosExtraidos, plantillaId, useAI, forzarBorrador } = req.body;
     
     if (!datosExtraidos || !plantillaId) {
       return res.status(400).json({ 
@@ -115,8 +115,8 @@ router.post('/generar-directo', async (req, res) => {
 
     const generacion = await generadorService.generateWritten(
       plantillaId,
-      datosExtraidos,
-      { useAI: useAI !== false }
+      datosExtraidos, 
+      { useAI: useAI !== false, forzarBorrador: forzarBorrador === true }
     );
 
     res.json({
@@ -125,6 +125,56 @@ router.post('/generar-directo', async (req, res) => {
     });
   } catch (error) {
     console.error('Error en /generar-directo:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+router.post('/extraer-para-plantilla', upload.single('archivo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No se proporcionó archivo' 
+      });
+    }
+
+    const { plantillaId } = req.body;
+    
+    if (!plantillaId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Se requiere especificar plantillaId' 
+      });
+    }
+
+    const Plantilla = require('../models/Plantilla');
+    const plantilla = await Plantilla.findById(plantillaId);
+    
+    if (!plantilla) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Plantilla no encontrada' 
+      });
+    }
+
+    const resultado = await generadorService.extraerDatosParaPlantilla(req.file, plantilla);
+    
+    res.json({
+      success: true,
+      data: {
+        ...resultado,
+        plantilla: {
+          _id: plantilla._id,
+          titulo: plantilla.titulo,
+          categoria: plantilla.categoria
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en /extraer-para-plantilla:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message 

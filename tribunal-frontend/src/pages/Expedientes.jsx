@@ -138,7 +138,7 @@ export default function Expedientes() {
 
   const handleToggleEstado = async (exp) => {
     const nuevoEstado = exp.estado === 'activo' ? 'archivado' : 'activo';
-    await api.expedientes.update(exp._id, { ...exp, estado: nuevoEstado });
+    await api.expedientes.update(exp._id, { estado: nuevoEstado });
     refreshExpedientes();
   };
 

@@ -13,7 +13,7 @@ export function AppProvider({ children }) {
   const fetchExpedientes = async () => {
     try {
       const data = await api.expedientes.getAll();
-      setExpedientes(data);
+      setExpedientes(data.data || data);
     } catch (err) {
       setError('Error al cargar expedientes');
     }
@@ -22,7 +22,7 @@ export function AppProvider({ children }) {
   const fetchPlazos = async () => {
     try {
       const data = await api.plazos.getAll();
-      setPlazos(data);
+      setPlazos(data.data || data);
     } catch (err) {
       setError('Error al cargar plazos');
     }
@@ -31,7 +31,7 @@ export function AppProvider({ children }) {
   const fetchPlantillas = async () => {
     try {
       const data = await api.plantillas.getAll();
-      setPlantillas(data);
+      setPlantillas(data.data || data);
     } catch (err) {
       setError('Error al cargar plantillas');
     }

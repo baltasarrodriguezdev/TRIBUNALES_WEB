@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+const NIVEL_VARIABLE = {
+  CRITICO: 'critico',
+  RECOMENDADO: 'recomendado',
+  OPCIONAL: 'opcional'
+};
+
 const variableSchema = new mongoose.Schema({
   nombre: {
     type: String,
@@ -14,9 +20,19 @@ const variableSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  nivel: {
+    type: String,
+    enum: [NIVEL_VARIABLE.CRITICO, NIVEL_VARIABLE.RECOMENDADO, NIVEL_VARIABLE.OPCIONAL],
+    default: NIVEL_VARIABLE.CRITICO
+  },
   descripcion: {
     type: String,
     default: ''
+  },
+  seccion: {
+    type: String,
+    enum: ['proceso', 'partes', 'abogados', 'domicilios', 'fechas', 'resolucion', 'agravios', 'normas', 'testigos', 'otros'],
+    default: 'otros'
   }
 }, { _id: false });
 
@@ -65,3 +81,4 @@ plantillaSchema.index({ categoria: 1, fuero: 1 });
 plantillaSchema.index({ titulo: 'text' });
 
 module.exports = mongoose.model('Plantilla', plantillaSchema);
+module.exports.NIVEL_VARIABLE = NIVEL_VARIABLE;
